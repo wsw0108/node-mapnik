@@ -4,17 +4,15 @@
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wunused-parameter"
 #include <nan.h>
+#include <mapnik/map.hpp>
 #pragma GCC diagnostic pop
 
 // stl
 #include <string>
 #include <memory>
+#include <mutex>
 
 using namespace v8;
-
-namespace mapnik { class Map; }
-
-typedef std::shared_ptr<mapnik::Map> map_ptr;
 
 class Map: public node::ObjectWrap {
 public:
@@ -81,20 +79,17 @@ public:
 
     Map(int width, int height);
     Map(int width, int height, std::string const& srs);
-    Map();
+    Map(Map const& m);
 
-    void acquire();
-    void release();
-    int active() const;
     void _ref() { Ref(); }
     void _unref() { Unref(); }
 
-    inline map_ptr get() { return map_; }
-
+    inline mapnik::Map const& get() { return map_; }
+    inline std::mutex& get_mutex() { return mutex_; }
 private:
     ~Map();
-    map_ptr map_;
-    int in_use_;
+    mapnik::Map map_;
+    std::mutex mutex_;
 };
 
 #endif

@@ -124,32 +124,17 @@ void Map::Initialize(Handle<Object> target) {
 
 Map::Map(int width, int height) :
     node::ObjectWrap(),
-    map_(std::make_shared<mapnik::Map>(width,height)),
-    in_use_(0) {}
+    map_(width,height) {}
 
 Map::Map(int width, int height, std::string const& srs) :
     node::ObjectWrap(),
-    map_(std::make_shared<mapnik::Map>(width,height,srs)),
-    in_use_(0) {}
+    map_(width,height,srs) {}
 
-Map::Map() :
+Map::Map(Map const& m) :
     node::ObjectWrap(),
-    map_(),
-    in_use_(0) {}
+    map_(m.map_) {}
 
 Map::~Map() { }
-
-void Map::acquire() {
-    ++in_use_;
-}
-
-void Map::release() {
-    --in_use_;
-}
-
-int Map::active() const {
-    return in_use_;
-}
 
 NAN_METHOD(Map::New)
 {
@@ -211,9 +196,10 @@ NAN_GETTER(Map::get_prop)
     NanScope();
     Map* m = node::ObjectWrap::Unwrap<Map>(args.Holder());
     std::string a = TOSTR(property);
+    std::lock_guard<std::mutex> lock(m->mutex_);
     if(a == "extent") {
         Local<Array> arr = NanNew<Array>(4);
-        mapnik::box2d<double> const& e = m->map_->get_current_extent();
+        mapnik::box2d<double> const& e = m->map_.get_current_extent();
         arr->Set(0, NanNew<Number>(e.minx()));
         arr->Set(1, NanNew<Number>(e.miny()));
         arr->Set(2, NanNew<Number>(e.maxx()));
@@ -221,7 +207,7 @@ NAN_GETTER(Map::get_prop)
         NanReturnValue(arr);
     }
     else if(a == "bufferedExtent") {
-        boost::optional<mapnik::box2d<double> > const& e = m->map_->get_buffered_extent();
+        boost::optional<mapnik::box2d<double> > const& e = m->map_.get_buffered_extent();
         Local<Array> arr = NanNew<Array>(4);
         arr->Set(0, NanNew<Number>(e->minx()));
         arr->Set(1, NanNew<Number>(e->miny()));
@@ -230,7 +216,7 @@ NAN_GETTER(Map::get_prop)
         NanReturnValue(arr);
     }
     else if(a == "maximumExtent") {
-        boost::optional<mapnik::box2d<double> > const& e = m->map_->maximum_extent();
+        boost::optional<mapnik::box2d<double> > const& e = m->map_.maximum_extent();
         if (!e)
             NanReturnUndefined();
         Local<Array> arr = NanNew<Array>(4);
@@ -241,17 +227,17 @@ NAN_GETTER(Map::get_prop)
         NanReturnValue(arr);
     }
     else if(a == "aspect_fix_mode")
-        NanReturnValue(NanNew<Integer>(m->map_->get_aspect_fix_mode()));
+        NanReturnValue(NanNew<Integer>(m->map_.get_aspect_fix_mode()));
     else if(a == "width")
-        NanReturnValue(NanNew<Integer>(m->map_->width()));
+        NanReturnValue(NanNew<Integer>(m->map_.width()));
     else if(a == "height")
-        NanReturnValue(NanNew<Integer>(m->map_->height()));
+        NanReturnValue(NanNew<Integer>(m->map_.height()));
     else if (a == "srs")
-        NanReturnValue(NanNew(m->map_->srs().c_str()));
+        NanReturnValue(NanNew(m->map_.srs().c_str()));
     else if(a == "bufferSize")
-        NanReturnValue(NanNew<Integer>(m->map_->buffer_size()));
+        NanReturnValue(NanNew<Integer>(m->map_.buffer_size()));
     else if (a == "background") {
-        boost::optional<mapnik::color> c = m->map_->background();
+        boost::optional<mapnik::color> c = m->map_.background();
         if (c)
             NanReturnValue(Color::NewInstance(*c));
         else
@@ -259,7 +245,7 @@ NAN_GETTER(Map::get_prop)
     }
     else if (a == "parameters") {
         Local<Object> ds = NanNew<Object>();
-        mapnik::parameters const& params = m->map_->get_extra_parameters();
+        mapnik::parameters const& params = m->map_.get_extra_parameters();
         mapnik::parameters::const_iterator it = params.begin();
         mapnik::parameters::const_iterator end = params.end();
         for (; it != end; ++it)
@@ -277,6 +263,7 @@ NAN_SETTER(Map::set_prop)
     NanScope();
     Map* m = node::ObjectWrap::Unwrap<Map>(args.Holder());
     std::string a = TOSTR(property);
+    std::lock_guard<std::mutex> lock(m->mutex_);
     if(a == "extent" || a == "maximumExtent") {
         if (!value->IsArray()) {
             NanThrowError("Must provide an array of: [minx,miny,maxx,maxy]");
@@ -293,9 +280,9 @@ NAN_SETTER(Map::set_prop)
                 double maxy = arr->Get(3)->NumberValue();
                 mapnik::box2d<double> box(minx,miny,maxx,maxy);
                 if(a == "extent")
-                    m->map_->zoom_to_box(box);
+                    m->map_.zoom_to_box(box);
                 else
-                    m->map_->set_maximum_extent(box);
+                    m->map_.set_maximum_extent(box);
             }
         }
     }
@@ -307,7 +294,7 @@ NAN_SETTER(Map::set_prop)
         } else {
             int val = value->IntegerValue();
             if (val < mapnik::Map::aspect_fix_mode_MAX && val >= 0) {
-                m->map_->set_aspect_fix_mode(static_cast<mapnik::Map::aspect_fix_mode>(val));
+                m->map_.set_aspect_fix_mode(static_cast<mapnik::Map::aspect_fix_mode>(val));
             } else {
                 NanThrowError("'aspect_fix_mode' value is invalid");
                 return;
@@ -320,7 +307,7 @@ NAN_SETTER(Map::set_prop)
             NanThrowError("'srs' must be a string");
             return;
         } else {
-            m->map_->set_srs(TOSTR(value));
+            m->map_.set_srs(TOSTR(value));
         }
     }
     else if (a == "bufferSize") {
@@ -328,7 +315,7 @@ NAN_SETTER(Map::set_prop)
             NanThrowTypeError("Must provide an integer bufferSize");
             return;
         } else {
-            m->map_->set_buffer_size(value->IntegerValue());
+            m->map_.set_buffer_size(value->IntegerValue());
         }
     }
     else if (a == "width") {
@@ -336,7 +323,7 @@ NAN_SETTER(Map::set_prop)
             NanThrowTypeError("Must provide an integer width");
             return;
         } else {
-            m->map_->set_width(value->IntegerValue());
+            m->map_.set_width(value->IntegerValue());
         }
     }
     else if (a == "height") {
@@ -344,7 +331,7 @@ NAN_SETTER(Map::set_prop)
             NanThrowTypeError("Must provide an integer height");
             return;
         } else {
-            m->map_->set_height(value->IntegerValue());
+            m->map_.set_height(value->IntegerValue());
         }
     }
     else if (a == "background") {
@@ -359,7 +346,7 @@ NAN_SETTER(Map::set_prop)
             return;
         }
         Color *c = node::ObjectWrap::Unwrap<Color>(obj);
-        m->map_->set_background(*c->get());
+        m->map_.set_background(*c->get());
     }
     else if (a == "parameters") {
         if (!value->IsObject()) {
@@ -389,7 +376,7 @@ NAN_SETTER(Map::set_prop)
             }
             i++;
         }
-        m->map_->set_extra_parameters(params);
+        m->map_.set_extra_parameters(params);
     }
 }
 
@@ -397,14 +384,16 @@ NAN_METHOD(Map::loadFonts)
 {
     NanScope();
     Map* m = node::ObjectWrap::Unwrap<Map>(args.Holder());
-    NanReturnValue(NanNew<Boolean>(m->map_->load_fonts()));
+    std::lock_guard<std::mutex> lock(m->mutex_);
+    NanReturnValue(NanNew<Boolean>(m->map_.load_fonts()));
 }
 
 NAN_METHOD(Map::memoryFonts)
 {
     NanScope();
     Map* m = node::ObjectWrap::Unwrap<Map>(args.Holder());
-    auto const& font_cache = m->map_->get_font_memory_cache();
+    std::lock_guard<std::mutex> lock(m->mutex_);
+    auto const& font_cache = m->map_.get_font_memory_cache();
     Local<Array> a = NanNew<Array>(font_cache.size());
     unsigned i = 0;
     for (auto const& kv : font_cache)
@@ -446,14 +435,16 @@ NAN_METHOD(Map::registerFonts)
         }
     }
     std::string path = TOSTR(args[0]);
-    NanReturnValue(NanNew(m->map_->register_fonts(path,recurse)));
+    std::lock_guard<std::mutex> lock(m->mutex_);
+    NanReturnValue(NanNew(m->map_.register_fonts(path,recurse)));
 }
 
 NAN_METHOD(Map::fonts)
 {
     NanScope();
     Map* m = node::ObjectWrap::Unwrap<Map>(args.Holder());
-    auto const& mapping = m->map_->get_font_file_mapping();
+    std::lock_guard<std::mutex> lock(m->mutex_);
+    auto const& mapping = m->map_.get_font_file_mapping();
     Local<Array> a = NanNew<Array>(mapping.size());
     unsigned i = 0;
     for (auto const& kv : mapping)
@@ -467,7 +458,8 @@ NAN_METHOD(Map::fontFiles)
 {
     NanScope();
     Map* m = node::ObjectWrap::Unwrap<Map>(args.Holder());
-    auto const& mapping = m->map_->get_font_file_mapping();
+    std::lock_guard<std::mutex> lock(m->mutex_);
+    auto const& mapping = m->map_.get_font_file_mapping();
     Local<Object> obj = NanNew<Object>();
     for (auto const& kv : mapping)
     {
@@ -480,7 +472,8 @@ NAN_METHOD(Map::fontDirectory)
 {
     NanScope();
     Map* m = node::ObjectWrap::Unwrap<Map>(args.Holder());
-    boost::optional<std::string> const& fdir = m->map_->font_directory();
+    std::lock_guard<std::mutex> lock(m->mutex_);
+    boost::optional<std::string> const& fdir = m->map_.font_directory();
     if (fdir)
     {
         NanReturnValue(NanNew(fdir->c_str()));
@@ -492,14 +485,16 @@ NAN_METHOD(Map::scale)
 {
     NanScope();
     Map* m = node::ObjectWrap::Unwrap<Map>(args.Holder());
-    NanReturnValue(NanNew<Number>(m->map_->scale()));
+    std::lock_guard<std::mutex> lock(m->mutex_);
+    NanReturnValue(NanNew<Number>(m->map_.scale()));
 }
 
 NAN_METHOD(Map::scaleDenominator)
 {
     NanScope();
     Map* m = node::ObjectWrap::Unwrap<Map>(args.Holder());
-    NanReturnValue(NanNew<Number>(m->map_->scale_denominator()));
+    std::lock_guard<std::mutex> lock(m->mutex_);
+    NanReturnValue(NanNew<Number>(m->map_.scale_denominator()));
 }
 
 typedef struct {
@@ -568,7 +563,8 @@ Handle<Value> Map::abstractQueryPoint(_NAN_METHOD_ARGS, bool geo_coords)
 
         if (options->Has(NanNew("layer")))
         {
-            std::vector<mapnik::layer> const& layers = m->map_->layers();
+            std::lock_guard<std::mutex> lock(m->mutex_);
+            std::vector<mapnik::layer> const& layers = m->map_.layers();
             Local<Value> layer_id = options->Get(NanNew("layer"));
             if (! (layer_id->IsString() || layer_id->IsNumber()) ) {
                 NanThrowTypeError("'layer' option required for map query and must be either a layer name(string) or layer index (integer)");
@@ -658,22 +654,22 @@ Handle<Value> Map::abstractQueryPoint(_NAN_METHOD_ARGS, bool geo_coords)
 void Map::EIO_QueryMap(uv_work_t* req)
 {
     query_map_baton_t *closure = static_cast<query_map_baton_t *>(req->data);
-
+    std::lock_guard<std::mutex> lock(closure->m->mutex_);
     try
     {
-        std::vector<mapnik::layer> const& layers = closure->m->map_->layers();
+        std::vector<mapnik::layer> const& layers = closure->m->map_.layers();
         if (closure->layer_idx >= 0)
         {
             mapnik::featureset_ptr fs;
             if (closure->geo_coords)
             {
-                fs = closure->m->map_->query_point(closure->layer_idx,
+                fs = closure->m->map_.query_point(closure->layer_idx,
                                                    closure->x,
                                                    closure->y);
             }
             else
             {
-                fs = closure->m->map_->query_map_point(closure->layer_idx,
+                fs = closure->m->map_.query_map_point(closure->layer_idx,
                                                        closure->x,
                                                        closure->y);
             }
@@ -689,13 +685,13 @@ void Map::EIO_QueryMap(uv_work_t* req)
                 mapnik::featureset_ptr fs;
                 if (closure->geo_coords)
                 {
-                    fs = closure->m->map_->query_point(idx,
+                    fs = closure->m->map_.query_point(idx,
                                                        closure->x,
                                                        closure->y);
                 }
                 else
                 {
-                    fs = closure->m->map_->query_map_point(idx,
+                    fs = closure->m->map_.query_map_point(idx,
                                                            closure->x,
                                                            closure->y);
                 }
@@ -757,7 +753,8 @@ NAN_METHOD(Map::layers)
 {
     NanScope();
     Map* m = node::ObjectWrap::Unwrap<Map>(args.Holder());
-    std::vector<mapnik::layer> const& layers = m->map_->layers();
+    std::lock_guard<std::mutex> lock(m->mutex_);
+    std::vector<mapnik::layer> const& layers = m->map_.layers();
     Local<Array> a = NanNew<Array>(layers.size());
     for (unsigned i = 0; i < layers.size(); ++i )
     {
@@ -781,7 +778,8 @@ NAN_METHOD(Map::add_layer) {
     }
     Layer *l = node::ObjectWrap::Unwrap<Layer>(obj);
     Map* m = node::ObjectWrap::Unwrap<Map>(args.Holder());
-    m->map_->add_layer(*l->get());
+    std::lock_guard<std::mutex> lock(m->mutex_);
+    m->map_.add_layer(*l->get());
     NanReturnUndefined();
 }
 
@@ -795,7 +793,8 @@ NAN_METHOD(Map::get_layer)
     }
 
     Map* m = node::ObjectWrap::Unwrap<Map>(args.Holder());
-    std::vector<mapnik::layer> const& layers = m->map_->layers();
+    std::lock_guard<std::mutex> lock(m->mutex_);
+    std::vector<mapnik::layer> const& layers = m->map_.layers();
 
     Local<Value> layer = args[0];
     if (layer->IsNumber())
@@ -843,7 +842,8 @@ NAN_METHOD(Map::clear)
 {
     NanScope();
     Map* m = node::ObjectWrap::Unwrap<Map>(args.Holder());
-    m->map_->remove_all();
+    std::lock_guard<std::mutex> lock(m->mutex_);
+    m->map_.remove_all();
     NanReturnUndefined();
 }
 
@@ -862,7 +862,8 @@ NAN_METHOD(Map::resize)
     }
 
     Map* m = node::ObjectWrap::Unwrap<Map>(args.Holder());
-    m->map_->resize(args[0]->IntegerValue(),args[1]->IntegerValue());
+    std::lock_guard<std::mutex> lock(m->mutex_);
+    m->map_.resize(args[0]->IntegerValue(),args[1]->IntegerValue());
     NanReturnUndefined();
 }
 
@@ -951,10 +952,10 @@ NAN_METHOD(Map::load)
 void Map::EIO_Load(uv_work_t* req)
 {
     load_xml_baton_t *closure = static_cast<load_xml_baton_t *>(req->data);
-
+    std::lock_guard<std::mutex> lock(closure->m->mutex_);
     try
     {
-        mapnik::load_map(*closure->m->map_,closure->stylesheet,closure->strict,closure->base_path);
+        mapnik::load_map(closure->m->map_,closure->stylesheet,closure->strict,closure->base_path);
     }
     catch (std::exception const& ex)
     {
@@ -1038,9 +1039,10 @@ NAN_METHOD(Map::loadSync)
         }
     }
 
+    std::lock_guard<std::mutex> lock(m->mutex_);
     try
     {
-        mapnik::load_map(*m->map_,stylesheet,strict,base_path);
+        mapnik::load_map(m->map_,stylesheet,strict,base_path);
     }
     catch (std::exception const& ex)
     {
@@ -1104,9 +1106,10 @@ NAN_METHOD(Map::fromStringSync)
 
     std::string stylesheet = TOSTR(args[0]);
 
+    std::lock_guard<std::mutex> lock(m->mutex_);
     try
     {
-        mapnik::load_map_string(*m->map_,stylesheet,strict,base_path);
+        mapnik::load_map_string(m->map_,stylesheet,strict,base_path);
     }
     catch (std::exception const& ex)
     {
@@ -1195,9 +1198,10 @@ void Map::EIO_FromString(uv_work_t* req)
 {
     load_xml_baton_t *closure = static_cast<load_xml_baton_t *>(req->data);
 
+    std::lock_guard<std::mutex> lock(closure->m->mutex_);
     try
     {
-        mapnik::load_map_string(*closure->m->map_,closure->stylesheet,closure->strict,closure->base_path);
+        mapnik::load_map_string(closure->m->map_,closure->stylesheet,closure->strict,closure->base_path);
     }
     catch (std::exception const& ex)
     {
@@ -1231,8 +1235,8 @@ NAN_METHOD(Map::clone)
 {
     NanScope();
     Map* m = node::ObjectWrap::Unwrap<Map>(args.Holder());
-    Map* m2 = new Map();
-    m2->map_ = std::make_shared<mapnik::Map>(*m->map_);
+    std::lock_guard<std::mutex> lock(m->mutex_);
+    Map* m2 = new Map(*m);
     Handle<Value> ext = NanNew<External>(m2);
     NanReturnValue(NanNew(constructor)->GetFunction()->NewInstance(1, &ext));
 }
@@ -1249,7 +1253,8 @@ NAN_METHOD(Map::save)
     Map* m = node::ObjectWrap::Unwrap<Map>(args.Holder());
     std::string filename = TOSTR(args[0]);
     bool explicit_defaults = false;
-    mapnik::save_map(*m->map_,filename,explicit_defaults);
+    std::lock_guard<std::mutex> lock(m->mutex_);
+    mapnik::save_map(m->map_,filename,explicit_defaults);
     NanReturnUndefined();
 }
 
@@ -1258,7 +1263,8 @@ NAN_METHOD(Map::to_string)
     NanScope();
     Map* m = node::ObjectWrap::Unwrap<Map>(args.Holder());
     bool explicit_defaults = false;
-    std::string map_string = mapnik::save_map_to_string(*m->map_,explicit_defaults);
+    std::lock_guard<std::mutex> lock(m->mutex_);
+    std::string map_string = mapnik::save_map_to_string(m->map_,explicit_defaults);
     NanReturnValue(NanNew(map_string.c_str()));
 }
 
@@ -1266,9 +1272,10 @@ NAN_METHOD(Map::zoomAll)
 {
     NanScope();
     Map* m = node::ObjectWrap::Unwrap<Map>(args.Holder());
+    std::lock_guard<std::mutex> lock(m->mutex_);
     try
     {
-        m->map_->zoom_all();
+        m->map_.zoom_all();
     }
     catch (std::exception const& ex)
     {
@@ -1324,7 +1331,8 @@ NAN_METHOD(Map::zoomToBox)
     }
 
     mapnik::box2d<double> box(minx,miny,maxx,maxy);
-    m->map_->zoom_to_box(box);
+    std::lock_guard<std::mutex> lock(m->mutex_);
+    m->map_.zoom_to_box(box);
     NanReturnUndefined();
 }
 
@@ -1434,15 +1442,6 @@ NAN_METHOD(Map::render)
 
     try
     {
-        if (m->active() != 0) {
-            std::ostringstream s;
-            s << "render: this map appears to be in use by "
-              << m->active()
-              << " other thread(s) which is not allowed."
-              << " You need to use a map pool to avoid sharing map objects between concurrent rendering";
-            std::clog << s.str() << "\n";
-        }
-
         // parse options
 
         // defaults
@@ -1561,7 +1560,8 @@ NAN_METHOD(Map::render)
                 NanReturnUndefined();
             } else {
 
-                std::vector<mapnik::layer> const& layers = m->map_->layers();
+                std::lock_guard<std::mutex> lock(m->mutex_);
+                std::vector<mapnik::layer> const& layers = m->map_.layers();
 
                 Local<Value> layer_id = options->Get(NanNew("layer"));
                 if (! (layer_id->IsString() || layer_id->IsNumber()) ) {
@@ -1741,7 +1741,6 @@ NAN_METHOD(Map::render)
             NanReturnUndefined();
         }
 
-        m->acquire();
         m->Ref();
         NanReturnUndefined();
     }
@@ -1755,13 +1754,14 @@ NAN_METHOD(Map::render)
 void Map::EIO_RenderVectorTile(uv_work_t* req)
 {
     vector_tile_baton_t *closure = static_cast<vector_tile_baton_t *>(req->data);
+    std::lock_guard<std::mutex> lock(closure->m->mutex_);
     try
     {
         typedef mapnik::vector_tile_impl::backend_pbf backend_type;
         typedef mapnik::vector_tile_impl::processor<backend_type> renderer_type;
         backend_type backend(closure->d->get_tile_nonconst(),
                              closure->path_multiplier);
-        mapnik::Map const& map = *closure->m->get();
+        mapnik::Map const& map = closure->m->map_;
         mapnik::request m_req(map.width(),map.height(),map.get_current_extent());
         m_req.set_buffer_size(closure->buffer_size);
         renderer_type ren(backend,
@@ -1791,8 +1791,6 @@ void Map::EIO_AfterRenderVectorTile(uv_work_t* req)
 
     vector_tile_baton_t *closure = static_cast<vector_tile_baton_t *>(req->data);
 
-    closure->m->release();
-
     if (closure->error) {
         Local<Value> argv[1] = { NanError(closure->error_name.c_str()) };
         NanMakeCallback(NanGetCurrentContext()->Global(), NanNew(closure->cb), 1, argv);
@@ -1811,8 +1809,9 @@ void Map::EIO_RenderGrid(uv_work_t* req)
 {
 
     grid_baton_t *closure = static_cast<grid_baton_t *>(req->data);
+    std::lock_guard<std::mutex> lock(closure->m->mutex_);
 
-    std::vector<mapnik::layer> const& layers = closure->m->map_->layers();
+    std::vector<mapnik::layer> const& layers = closure->m->map_.layers();
 
     try
     {
@@ -1833,7 +1832,7 @@ void Map::EIO_RenderGrid(uv_work_t* req)
             attributes.insert(join_field);
         }
 
-        mapnik::grid_renderer<mapnik::grid> ren(*closure->m->map_,
+        mapnik::grid_renderer<mapnik::grid> ren(closure->m->map_,
                                                 *closure->g->get(),
                                                 closure->scale_factor,
                                                 closure->offset_x,
@@ -1855,8 +1854,6 @@ void Map::EIO_AfterRenderGrid(uv_work_t* req)
     NanScope();
 
     grid_baton_t *closure = static_cast<grid_baton_t *>(req->data);
-
-    closure->m->release();
 
     if (closure->error) {
         // TODO - add more attributes
@@ -1916,10 +1913,11 @@ struct agg_renderer_visitor
 void Map::EIO_RenderImage(uv_work_t* req)
 {
     image_baton_t *closure = static_cast<image_baton_t *>(req->data);
+    std::lock_guard<std::mutex> lock(closure->m->mutex_);
 
     try
     {
-        mapnik::Map const& map = *closure->m->map_;
+        mapnik::Map const& map = closure->m->map_;
         mapnik::request m_req(map.width(),map.height(),map.get_current_extent());
         m_req.set_buffer_size(closure->buffer_size);
         agg_renderer_visitor visit(map, 
@@ -1943,8 +1941,6 @@ void Map::EIO_AfterRenderImage(uv_work_t* req)
     NanScope();
 
     image_baton_t *closure = static_cast<image_baton_t *>(req->data);
-
-    closure->m->release();
 
     if (closure->error) {
         Local<Value> argv[1] = { NanError(closure->error_name.c_str()) };
@@ -2130,6 +2126,7 @@ NAN_METHOD(Map::renderFile)
 void Map::EIO_RenderFile(uv_work_t* req)
 {
     render_file_baton_t *closure = static_cast<render_file_baton_t *>(req->data);
+    std::lock_guard<std::mutex> lock(closure->m->mutex_);
 
     try
     {
@@ -2137,14 +2134,14 @@ void Map::EIO_RenderFile(uv_work_t* req)
         {
 #if defined(HAVE_CAIRO)
             // https://github.com/mapnik/mapnik/issues/1930
-            mapnik::save_to_cairo_file(*closure->m->map_,closure->output,closure->format,closure->scale_factor,closure->scale_denominator);
+            mapnik::save_to_cairo_file(closure->m->map_,closure->output,closure->format,closure->scale_factor,closure->scale_denominator);
 #else
 #endif
         }
         else
         {
-            mapnik::image_rgba8 im(closure->m->map_->width(),closure->m->map_->height());
-            mapnik::Map const& map = *closure->m->map_;
+            mapnik::image_rgba8 im(closure->m->map_.width(),closure->m->map_.height());
+            mapnik::Map const& map = closure->m->map_;
             mapnik::request m_req(map.width(),map.height(),map.get_current_extent());
             m_req.set_buffer_size(closure->buffer_size);
             mapnik::agg_renderer<mapnik::image_rgba8> ren(map,
@@ -2173,8 +2170,6 @@ void Map::EIO_AfterRenderFile(uv_work_t* req)
     NanScope();
 
     render_file_baton_t *closure = static_cast<render_file_baton_t *>(req->data);
-
-    closure->m->release();
 
     if (closure->error) {
         Local<Value> argv[1] = { NanError(closure->error_name.c_str()) };
@@ -2268,10 +2263,11 @@ NAN_METHOD(Map::renderSync)
 
     Map* m = node::ObjectWrap::Unwrap<Map>(args.Holder());
     std::string s;
+    std::lock_guard<std::mutex> lock(m->mutex_);
     try
     {
-        mapnik::image_rgba8 im(m->map_->width(),m->map_->height());
-        mapnik::Map const& map = *m->map_;
+        mapnik::image_rgba8 im(m->map_.width(),m->map_.height());
+        mapnik::Map const& map = m->map_;
         mapnik::request m_req(map.width(),map.height(),map.get_current_extent());
         m_req.set_buffer_size(buffer_size);
         mapnik::agg_renderer<mapnik::image_rgba8> ren(map,
@@ -2393,13 +2389,14 @@ NAN_METHOD(Map::renderFileSync)
         }
     }
 
+    std::lock_guard<std::mutex> lock(m->mutex_);
     try
     {
 
         if (format == "pdf" || format == "svg" || format =="ps" || format == "ARGB32" || format == "RGB24")
         {
 #if defined(HAVE_CAIRO)
-            mapnik::save_to_cairo_file(*m->map_,output,format,scale_factor,scale_denominator);
+            mapnik::save_to_cairo_file(m->map_,output,format,scale_factor,scale_denominator);
 #else
             std::ostringstream s("");
             s << "Cairo backend is not available, cannot write to " << format << "\n";
@@ -2409,8 +2406,8 @@ NAN_METHOD(Map::renderFileSync)
         }
         else
         {
-            mapnik::image_rgba8 im(m->map_->width(),m->map_->height());
-            mapnik::Map const& map = *m->map_;
+            mapnik::image_rgba8 im(m->map_.width(),m->map_.height());
+            mapnik::Map const& map = m->map_;
             mapnik::request m_req(map.width(),map.height(),map.get_current_extent());
             m_req.set_buffer_size(buffer_size);
             mapnik::agg_renderer<mapnik::image_rgba8> ren(map,

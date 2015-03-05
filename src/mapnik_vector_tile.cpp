@@ -2435,7 +2435,8 @@ NAN_METHOD(VectorTile::render)
             NanThrowTypeError("'layer' option required for grid rendering and must be either a layer name(string) or layer index (integer)");
             NanReturnUndefined();
         } else {
-            std::vector<mapnik::layer> const& layers = m->get()->layers();
+            std::lock_guard<std::mutex> lock(m->get_mutex());
+            std::vector<mapnik::layer> const& layers = m->get().layers();
 
             Local<Value> layer_id = options->Get(NanNew("layer"));
             if (! (layer_id->IsString() || layer_id->IsNumber()) )
@@ -2580,9 +2581,9 @@ template <typename Renderer> void process_layers(Renderer & ren,
 void VectorTile::EIO_RenderTile(uv_work_t* req)
 {
     vector_tile_render_baton_t *closure = static_cast<vector_tile_render_baton_t *>(req->data);
-
+    std::lock_guard<std::mutex> lock(closure->m->get_mutex());
     try {
-        mapnik::Map const& map_in = *closure->m->get();
+        mapnik::Map const& map_in = closure->m->get();
         mapnik::vector_tile_impl::spherical_mercator merc(closure->d->width_);
         double minx,miny,maxx,maxy;
         if (closure->zxy_override) {
