@@ -19,6 +19,9 @@ os: Visual Studio 2015
 
 shallow_clone: true
 
+cache:
+  - mapnik-sdk -> appveyor.yml
+
 install:
   - scripts\build-appveyor.bat
 

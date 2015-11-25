@@ -38,7 +38,7 @@ IF %ERRORLEVEL% NEQ 0 GOTO ERROR
 :: is preserved. The alternative might be to put
 :: our custom node.exe on PATH from a custom location
 :: and then pass `--prefix` to npm - but this is untested
-ECHO preparing to delete existing node.exe
+ECHO preparing to delete existing node.exe at "%ProgramFiles%\nodejs"
 IF EXIST "%ProgramFiles%\nodejs" ^
     IF EXIST "%ProgramFiles%\nodejs\node.exe" ^
         ECHO found "%ProgramFiles%\nodejs\node.exe", deleting... && ^
@@ -51,7 +51,7 @@ IF %ERRORLEVEL% NEQ 0 GOTO ERROR
 
 ECHO preparing to check shared libs
 IF EXIST "%ProgramFiles%\nodejs" ^
-    ECHO checking shared libs for new node.exe && python test\check_shared_libs.py "%ProgramFiles%\nodejs\"
+    ECHO checking shared libs for new node.exe && python test\check_shared_libs.py %ProgramFiles%\nodejs\
 
 IF DEFINED ProgramFiles(x86) ^
     IF EXIST "%ProgramFiles(x86)%\nodejs" ^
@@ -67,7 +67,7 @@ IF %ERRORLEVEL% NEQ 0 GOTO ERROR
 
 IF DEFINED ProgramFiles(x86) ^
     IF EXIST "%ProgramFiles(x86)%\nodejs" ^
-        ECHO checking shared libs for new node.exe && python test\check_shared_libs.py "%ProgramFiles(x86)%\nodejs\"
+        ECHO checking shared libs for new node.exe && python test\check_shared_libs.py %ProgramFiles(x86)%\nodejs\
 
 ::delete node.exe in current directory, that newer npm versions put stuff into the right directories
 IF EXIST node.exe DEL node.exe
