@@ -8,6 +8,9 @@ ECHO =========== %~f0 ===========
 IF /I "%PLATFORM%" == "x64" set PATH=C:\Python27-x64;%PATH%
 :: put 7z on path (needed for unpacking mapnik sdk)
 SET PATH=C:\Program Files\7-Zip;%PATH%
+::put dumpbin on path: required by check_shared_libs.py
+SET PATH=C:\Program Files (x86)\Microsoft Visual Studio 14.0\VC\bin;%PATH%
+
 
 :: TODO - dist/dev/ is intended for dev releases of mapnik
 :: We ideally want to get in the habit of only using Mapnik official releases
@@ -35,23 +38,33 @@ IF %ERRORLEVEL% NEQ 0 GOTO ERROR
 :: is preserved. The alternative might be to put
 :: our custom node.exe on PATH from a custom location
 :: and then pass `--prefix` to npm - but this is untested
-ECHO deleting node.exe programfiles x64
 IF EXIST "%ProgramFiles%\nodejs" ^
     IF EXIST "%ProgramFiles%\nodejs\node.exe" ^
         ECHO found "%ProgramFiles%\nodejs\node.exe", deleting... && ^
-        DEL /F "%ProgramFiles%\nodejs\node.exe"
+        ECHO deleting "%ProgramFiles%\nodejs\node.exe" && DEL /F "%ProgramFiles%\nodejs\node.exe"
 IF %ERRORLEVEL% NEQ 0 GOTO ERROR
-ECHO copying node.exe to programfiles x64
-IF EXIST %ProgramFiles%\nodejs ECHO copying to "%ProgramFiles%\nodejs\node.exe" && COPY /Y node.exe "%ProgramFiles%\nodejs\"
-IF %ERRORLEVEL% NEQ 0 GOTO ERROR
-
-ECHO deleting node.exe programfiles x86
-IF DEFINED ProgramFiles(x86) IF EXIST "%ProgramFiles(x86)%\nodejs" IF EXIST "%ProgramFiles(x86)%\nodejs\node.exe" ECHO "found %ProgramFiles(x86)%\nodejs\node.exe", deleting... && DEL /F "%ProgramFiles(x86)%\nodejs\node.exe"
+IF EXIST "%ProgramFiles%\nodejs" ^
+    ECHO copying local node.exe to "%ProgramFiles%\nodejs\node.exe" && COPY /Y node.exe "%ProgramFiles%\nodejs\"
 IF %ERRORLEVEL% NEQ 0 GOTO ERROR
 
-ECHO copying node.exe to programfiles x86
-IF DEFINED ProgramFiles(x86) IF EXIST "%ProgramFiles(x86)%\nodejs" ECHO copying to "%ProgramFiles(x86)%\nodejs\node.exe" && COPY /Y node.exe "%ProgramFiles(x86)%\nodejs\"
+IF EXIST "%ProgramFiles%\nodejs" ^
+    ECHO checking shared libs for new node.exe && python test\check_shared_libs.py "%ProgramFiles%\nodejs\"
+
+IF DEFINED ProgramFiles(x86) ^
+    IF EXIST "%ProgramFiles(x86)%\nodejs" ^
+        IF EXIST "%ProgramFiles(x86)%\nodejs\node.exe" ^
+            ECHO "deleting 32 bit %ProgramFiles(x86)%\nodejs\node.exe" && ^
+            DEL /F "%ProgramFiles(x86)%\nodejs\node.exe"
 IF %ERRORLEVEL% NEQ 0 GOTO ERROR
+
+IF DEFINED ProgramFiles(x86) ^
+    IF EXIST "%ProgramFiles(x86)%\nodejs" ^
+        ECHO "copying to %ProgramFiles(x86)%\nodejs\node.exe" && COPY /Y node.exe "%ProgramFiles(x86)%\nodejs\"
+IF %ERRORLEVEL% NEQ 0 GOTO ERROR
+
+IF DEFINED ProgramFiles(x86) ^
+    IF EXIST "%ProgramFiles(x86)%\nodejs" ^
+        ECHO checking shared libs for new node.exe && python test\check_shared_libs.py "%ProgramFiles(x86)%\nodejs\"
 
 ::delete node.exe in current directory, that newer npm versions put stuff into the right directories
 IF EXIST node.exe DEL node.exe
@@ -66,7 +79,7 @@ IF %ERRORLEVEL% NEQ 0 GOTO ERROR
 ECHO clear out node-gyp binary cache to ensure vs 2015 binaries are linked
 IF "%msvs_toolset%" == "14" IF EXIST %USERPROFILE%\.node-gyp rd /s /q %USERPROFILE%\.node-gyp
 
-::upgrade npm to get consistent behaviour with older node versions
+::upgrade npm to get consistent behavior with older node versions
 powershell Set-ExecutionPolicy Unrestricted -Scope CurrentUser -Force
 IF %ERRORLEVEL% NEQ 0 GOTO ERROR
 CALL npm install -g npm-windows-upgrade
@@ -108,7 +121,7 @@ IF /I "%NPM_BIN_DIR%"=="%CD%" ECHO ERROR npm bin -g equals local directory && SE
 ECHO ===== where npm puts stuff END ============
 
 :: install node-gyp globally to:
-:: 1) ensure node-gyp can find it (probably optional)
+:: 1) ensure node-pre-gyp can find it (probably optional)
 :: 2) ensure we have recent enough node-gyp to understand VS 2015 (needed for node v0.10.x certainly)
 ECHO installing node-gyp
 CALL npm install -g node-gyp
