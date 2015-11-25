@@ -108,6 +108,8 @@
             'defines': ['NOMINMAX','<!@(mapnik-config --defines)'],
             'libraries': [
               '<!@(mapnik-config --libs)',
+              'mapnik-wkt.lib',
+              'mapnik-json.lib',
               '<!@(mapnik-config --dep-libs)',
               'libprotobuf-lite.lib',
             ],
@@ -127,6 +129,8 @@
             ],
             'libraries':[
               '<!@(mapnik-config --libs)',
+              '-lmapnik-wkt',
+              '-lmapnik-json',
               '<!@(mapnik-config --ldflags)',
               '-lprotobuf-lite',
             ],

@@ -8,11 +8,6 @@
 #include <mapnik/unicode.hpp>
 #include <mapnik/feature_factory.hpp>
 #include <mapnik/json/feature_parser.hpp>
-#include <mapnik/json/feature_grammar_impl.hpp>
-#include <mapnik/json/geometry_grammar_impl.hpp>
-#include <mapnik/json/feature_generator_grammar_impl.hpp>
-#include <mapnik/json/geometry_generator_grammar_impl.hpp>
-#include <mapnik/json/properties_generator_grammar_impl.hpp>
 #include <mapnik/value_types.hpp>
 #include <mapnik/util/feature_to_geojson.hpp>
 
