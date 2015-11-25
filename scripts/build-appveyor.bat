@@ -38,28 +38,31 @@ IF %ERRORLEVEL% NEQ 0 GOTO ERROR
 :: is preserved. The alternative might be to put
 :: our custom node.exe on PATH from a custom location
 :: and then pass `--prefix` to npm - but this is untested
+ECHO preparing to delete existing node.exe
 IF EXIST "%ProgramFiles%\nodejs" ^
     IF EXIST "%ProgramFiles%\nodejs\node.exe" ^
         ECHO found "%ProgramFiles%\nodejs\node.exe", deleting... && ^
         ECHO deleting "%ProgramFiles%\nodejs\node.exe" && DEL /F "%ProgramFiles%\nodejs\node.exe"
 IF %ERRORLEVEL% NEQ 0 GOTO ERROR
+ECHO preparing to copy into place new node.exe
 IF EXIST "%ProgramFiles%\nodejs" ^
     ECHO copying local node.exe to "%ProgramFiles%\nodejs\node.exe" && COPY /Y node.exe "%ProgramFiles%\nodejs\"
 IF %ERRORLEVEL% NEQ 0 GOTO ERROR
 
+ECHO preparing to check shared libs
 IF EXIST "%ProgramFiles%\nodejs" ^
     ECHO checking shared libs for new node.exe && python test\check_shared_libs.py "%ProgramFiles%\nodejs\"
 
 IF DEFINED ProgramFiles(x86) ^
     IF EXIST "%ProgramFiles(x86)%\nodejs" ^
         IF EXIST "%ProgramFiles(x86)%\nodejs\node.exe" ^
-            ECHO "deleting 32 bit %ProgramFiles(x86)%\nodejs\node.exe" && ^
+            ECHO deleting 32 bit "%ProgramFiles(x86)%\nodejs\node.exe" && ^
             DEL /F "%ProgramFiles(x86)%\nodejs\node.exe"
 IF %ERRORLEVEL% NEQ 0 GOTO ERROR
 
 IF DEFINED ProgramFiles(x86) ^
     IF EXIST "%ProgramFiles(x86)%\nodejs" ^
-        ECHO "copying to %ProgramFiles(x86)%\nodejs\node.exe" && COPY /Y node.exe "%ProgramFiles(x86)%\nodejs\"
+        ECHO copying to "%ProgramFiles(x86)%\nodejs\node.exe" && COPY /Y node.exe "%ProgramFiles(x86)%\nodejs\"
 IF %ERRORLEVEL% NEQ 0 GOTO ERROR
 
 IF DEFINED ProgramFiles(x86) ^
