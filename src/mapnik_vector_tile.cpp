@@ -35,6 +35,9 @@
 #endif
 #include <mapnik/box2d.hpp>
 #include <mapnik/scale_denominator.hpp>
+#include <mapnik/json/feature_generator_grammar_impl.hpp>
+#include <mapnik/json/geometry_generator_grammar_impl.hpp>
+#include <mapnik/json/properties_generator_grammar_impl.hpp>
 #include <mapnik/util/geometry_to_geojson.hpp>
 #include <mapnik/util/feature_to_geojson.hpp>
 #include <mapnik/feature_kv_iterator.hpp>

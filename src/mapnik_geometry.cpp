@@ -6,6 +6,10 @@
 #include <mapnik/geometry_reprojection.hpp>
 #include <mapnik/util/geometry_to_geojson.hpp>
 #include <mapnik/util/geometry_to_wkt.hpp>
+#include <mapnik/wkt/wkt_generator_grammar_impl.hpp>
+#include <mapnik/json/feature_generator_grammar_impl.hpp>
+#include <mapnik/json/geometry_generator_grammar_impl.hpp>
+#include <mapnik/json/properties_generator_grammar_impl.hpp>
 #include <mapnik/util/geometry_to_wkb.hpp>
 
 Nan::Persistent<v8::FunctionTemplate> Geometry::constructor;
