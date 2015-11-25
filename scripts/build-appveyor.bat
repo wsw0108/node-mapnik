@@ -39,35 +39,26 @@ IF %ERRORLEVEL% NEQ 0 GOTO ERROR
 :: our custom node.exe on PATH from a custom location
 :: and then pass `--prefix` to npm - but this is untested
 ECHO preparing to delete existing node.exe at "%ProgramFiles%\nodejs"
-IF EXIST "%ProgramFiles%\nodejs" ^
-    IF EXIST "%ProgramFiles%\nodejs\node.exe" ^
-        ECHO found "%ProgramFiles%\nodejs\node.exe", deleting... && ^
-        ECHO deleting "%ProgramFiles%\nodejs\node.exe" && DEL /F "%ProgramFiles%\nodejs\node.exe"
+IF EXIST "%ProgramFiles%\nodejs" IF EXIST "%ProgramFiles%\nodejs\node.exe" ECHO found "%ProgramFiles%\nodejs\node.exe", deleting... && ECHO deleting "%ProgramFiles%\nodejs\node.exe" && DEL /F "%ProgramFiles%\nodejs\node.exe"
 IF %ERRORLEVEL% NEQ 0 GOTO ERROR
 ECHO preparing to copy into place new node.exe
-IF EXIST "%ProgramFiles%\nodejs" ^
-    ECHO copying local node.exe to "%ProgramFiles%\nodejs\node.exe" && COPY /Y node.exe "%ProgramFiles%\nodejs\"
+IF EXIST "%ProgramFiles%\nodejs" ECHO copying local node.exe to "%ProgramFiles%\nodejs\node.exe" && COPY /Y node.exe "%ProgramFiles%\nodejs\"
 IF %ERRORLEVEL% NEQ 0 GOTO ERROR
 
 ECHO preparing to check shared libs in "%ProgramFiles%\nodejs"
-IF EXIST "%ProgramFiles%\nodejs" ^
-    ECHO checking shared libs for new node.exe && python test\check_shared_libs.py "%ProgramFiles%\nodejs"
+IF EXIST "%ProgramFiles%\nodejs" ECHO checking shared libs for new node.exe && python test\check_shared_libs.py "%ProgramFiles%\nodejs"
 
 ECHO preparing to delete existing node.exe at "%ProgramFiles(x86)%\nodejs"
-IF EXIST "%ProgramFiles(x86)%\nodejs" ^
-    IF EXIST "%ProgramFiles(x86)%\nodejs\node.exe" ^
-        ECHO deleting 32 bit "%ProgramFiles(x86)%\nodejs\node.exe" && ^
-        DEL /F "%ProgramFiles(x86)%\nodejs\node.exe"
+IF EXIST "%ProgramFiles(x86)%\nodejs" IF EXIST "%ProgramFiles(x86)%\nodejs\node.exe" ECHO deleting 32 bit "%ProgramFiles(x86)%\nodejs\node.exe" && DEL /F "%ProgramFiles(x86)%\nodejs\node.exe"
 IF %ERRORLEVEL% NEQ 0 GOTO ERROR
 
 ECHO preparing to copy into place new node.exe
 IF EXIST "%ProgramFiles(x86)%\nodejs" ^
-        ECHO copying to "%ProgramFiles(x86)%\nodejs\node.exe" && COPY /Y node.exe "%ProgramFiles(x86)%\nodejs\"
+ECHO copying to "%ProgramFiles(x86)%\nodejs\node.exe" && COPY /Y node.exe "%ProgramFiles(x86)%\nodejs\"
 IF %ERRORLEVEL% NEQ 0 GOTO ERROR
 
 ECHO preparing to check shared libs in "%ProgramFiles(x86)%\nodejs"
-IF EXIST "%ProgramFiles(x86)%\nodejs" ^
-        ECHO checking shared libs for new node.exe && python test\check_shared_libs.py "%ProgramFiles(x86)%\nodejs"
+IF EXIST "%ProgramFiles(x86)%\nodejs" ECHO checking shared libs for new node.exe && python test\check_shared_libs.py "%ProgramFiles(x86)%\nodejs"
 
 ::delete node.exe in current directory, that newer npm versions put stuff into the right directories
 IF EXIST node.exe DEL node.exe
