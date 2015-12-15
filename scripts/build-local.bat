@@ -10,7 +10,7 @@ ECHO =========== %~f0 ===========
 SET USE_LOCAL_MAPNIK_SDK=0
 
 SET APPVEYOR_REPO_COMMIT_MESSAGE=no commit message provided
-SET MAPNIK_GIT=v3.0.9-maptalks1
+SET MAPNIK_GIT=v3.0.9-5-g34cfc58
 SET nodejs_version=5.1.0
 SET platform=x64
 SET msvs_toolset=14
