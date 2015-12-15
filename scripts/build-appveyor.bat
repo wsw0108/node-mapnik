@@ -5,20 +5,23 @@ SET EL=0
 ECHO =========== %~f0 ===========
 
 :: use 64 bit python if platform is 64 bit
-IF /I "%PLATFORM%" == "x64" set PATH=C:\Python27-x64;%PATH%
+IF /I "%PLATFORM%" == "x64" set PATH=C:\Python27;%PATH%
 :: put 7z on path (needed for unpacking mapnik sdk)
 SET PATH=C:\Program Files\7-Zip;%PATH%
 
 :: TODO - dist/dev/ is intended for dev releases of mapnik
 :: We ideally want to get in the habit of only using Mapnik official releases
 :: which will be uploaded to dist/
-SET MAPNIK_SDK_URL=https://mapnik.s3.amazonaws.com/dist/dev/mapnik-win-sdk-%MAPNIK_GIT%-%platform%-%msvs_toolset%.0.7z
+SET MAPNIK_SDK_URL=https://maptalks.s3.amazonaws.com/dist/dev/mapnik-win-sdk-%MAPNIK_GIT%-%platform%-%msvs_toolset%.0.7z
 ECHO fetching mapnik sdk^: %MAPNIK_SDK_URL%
 IF EXIST mapnik-sdk.7z (ECHO already downloaded) ELSE (powershell Invoke-WebRequest "${env:MAPNIK_SDK_URL}" -OutFile mapnik-sdk.7z)
 IF %ERRORLEVEL% NEQ 0 GOTO ERROR
 ECHO extracting mapnik sdk
 IF EXIST mapnik-sdk (ECHO already extracted) ELSE (7z -y x mapnik-sdk.7z | %windir%\system32\FIND "ing archive")
 IF %ERRORLEVEL% NEQ 0 GOTO ERROR
+
+:: install nodejs v5.1.0 directly
+goto UPGRADE_NPM
 
 :: replace installed node.exe with Mapbox node.exe
 :: so that the binaries based on Visual Studio 2015
@@ -66,6 +69,7 @@ IF %ERRORLEVEL% NEQ 0 GOTO ERROR
 ECHO clear out node-gyp binary cache to ensure vs 2015 binaries are linked
 IF "%msvs_toolset%" == "14" IF EXIST %USERPROFILE%\.node-gyp rd /s /q %USERPROFILE%\.node-gyp
 
+:UPGRADE_NPM
 ::upgrade npm to get consistent behaviour with older node versions
 powershell Set-ExecutionPolicy Unrestricted -Scope CurrentUser -Force
 IF %ERRORLEVEL% NEQ 0 GOTO ERROR

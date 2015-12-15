@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Map srs="+init=epsg:3857">
+
+    <Style name="world">
+        <Rule>
+            <PolygonSymbolizer fill="darkorange" />
+            <LineSymbolizer stroke="purple" />
+            <MarkersSymbolizer width="5" opacity=".7" fill="yellow" allow-overlap="true" ignore-placement="true"/>
+        </Rule>
+    </Style>
+
+    <Layer name="world" srs="+init=epsg:4326">
+        <StyleName>world</StyleName>
+        <Datasource>
+            <Parameter name="type">maptalks</Parameter>
+            <Parameter name="engine_home"><![CDATA[M:\engine-server]]></Parameter>
+            <Parameter name="dbname">testdb</Parameter>
+            <Parameter name="layer">ne_10m_admin_0_countries</Parameter>
+            <Parameter name="filter"><![CDATA[{"spatialFilter":{"relation":1,"geometry":{"type":"Polygon","coordinates":[[[70.0,61.0],[150.0,61.0],[150.0,2.0],[70.0,2.0],[70.0,61.0]]]}},"resultCrs":{"type":"cnCoordinateType","properties":{"name":"gcj02"}},"resultFields":["*"],"returnGeometry":true}]]></Parameter>
+        </Datasource>
+    </Layer>
+
+</Map>
